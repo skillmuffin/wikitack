@@ -20,7 +20,7 @@ def _sections_to_text(sections: list[PageSectionCreate]) -> str:
                 parts.append(section.header)
             if section.text:
                 parts.append(section.text)
-        elif section.section_type in {"info", "warning"}:
+        elif section.section_type in {"info", "warning", "error"}:
             if section.text:
                 parts.append(section.text)
         elif section.section_type == "snippet":

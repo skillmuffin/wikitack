@@ -39,11 +39,11 @@ export interface WikiSearchResult {
   relevance: number;
 }
 
-export type SectionType = "paragraph" | "picture" | "snippet" | "info" | "warning";
+export type SectionType = "paragraph" | "picture" | "snippet" | "info" | "warning" | "error";
 
 export interface PageSection {
-  id: number;
-  pageId: number;
+  id?: number;
+  pageId?: number;
   position: number;
   sectionType: SectionType;
   header?: string | null;
@@ -52,4 +52,6 @@ export interface PageSection {
   caption?: string | null;
   code?: string | null;
   language?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }

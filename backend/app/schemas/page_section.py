@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-SectionType = Literal["paragraph", "picture", "snippet", "info", "warning"]
+SectionType = Literal["paragraph", "picture", "snippet", "info", "warning", "error"]
 
 
 class PageSectionBase(BaseModel):
@@ -38,7 +38,7 @@ class PageSectionBase(BaseModel):
                 raise ValueError("snippet sections require code")
             if not self.language:
                 raise ValueError("snippet sections require language")
-        elif self.section_type in {"info", "warning"}:
+        elif self.section_type in {"info", "warning", "error"}:
             if not self.text:
                 raise ValueError(f"{self.section_type} sections require text")
         return self

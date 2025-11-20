@@ -71,3 +71,7 @@ yarn-error.log*
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+
+# Allow checked-in frontend helpers
+!frontend/src/lib/
+!frontend/src/lib/**
