@@ -180,7 +180,7 @@ export default function SpaceSlugPage() {
               <div className="text-red-600 dark:text-red-400">{error}</div>
             )}
             {!loading && !error && space && (
-              <div className="max-w-4xl space-y-6">
+              <div className="w-full max-w-5xl mx-auto space-y-6">
                 <header className="border-b border-zinc-200 pb-4 dark:border-zinc-800">
                   <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
                     {space.name}

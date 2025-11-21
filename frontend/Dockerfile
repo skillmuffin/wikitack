@@ -16,6 +16,13 @@ RUN yarn install --frozen-lockfile
 FROM base AS builder
 WORKDIR /app
 
+# Build-time API configuration (override with --build-arg as needed)
+# Defaults target the compose network service DNS
+ARG NEXT_PUBLIC_API_BASE_URL=http://backend:8000/api/v1
+ARG NEXT_PUBLIC_API_URL=http://backend:8000
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
@@ -35,6 +42,10 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_API_BASE_URL=http://backend:8000/api/v1
+ARG NEXT_PUBLIC_API_URL=http://backend:8000
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Create a non-root user
 RUN addgroup --system --gid 1001 nodejs

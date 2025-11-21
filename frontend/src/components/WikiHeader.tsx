@@ -11,7 +11,7 @@ type Workspace = {
   slug?: string;
 };
 
-const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
+// const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
 interface WikiHeaderProps {
   onSearch?: (query: string) => void;
@@ -39,8 +39,17 @@ export default function WikiHeader({ onSearch }: WikiHeaderProps) {
   };
 
   const handleGoogleLogin = async () => {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
+
+    console.log("apiBase computed:", apiBase);
+
+    if (!apiBase) {
+      console.error("NEXT_PUBLIC_API_BASE_URL is not configured; cannot start OAuth flow.");
+      return;
+    }
+
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/google/login`);
+      const response = await fetch(`${apiBase}/auth/google/login`);
       if (!response.ok) {
         throw new Error("Failed to get Google login URL");
       }
@@ -73,6 +82,7 @@ export default function WikiHeader({ onSearch }: WikiHeaderProps) {
 
   // Fetch workspaces for dropdown when authenticated
   useEffect(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
     const fetchWorkspaces = async () => {
       try {
         const resp = await fetch(`${apiBase}/workspaces/`, {

@@ -849,4 +849,10 @@ python3 -m venv .venv
 	pip install -e .
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
+
+
+   podman-compose down
+   podman-compose build --no-cache
+   podman-compose up --force-recreate  
+
 **Built with FastAPI, Next.js, PostgreSQL, and modern web technologies.**
