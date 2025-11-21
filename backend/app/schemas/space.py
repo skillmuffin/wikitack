@@ -16,7 +16,7 @@ class SpaceBase(BaseModel):
 
 class SpaceCreate(SpaceBase):
     """Schema for creating a new space."""
-    owner_id: int
+    workspace_id: int
 
 
 class SpaceUpdate(BaseModel):
@@ -29,6 +29,7 @@ class SpaceUpdate(BaseModel):
 class Space(SpaceBase):
     """Schema for space response."""
     id: int
+    workspace_id: int
     owner_id: int
     created_at: datetime
     updated_at: datetime

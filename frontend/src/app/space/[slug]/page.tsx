@@ -2,11 +2,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import WikiHeader from "@/components/WikiHeader";
 import WikiSidebar from "@/components/WikiSidebar";
 import { PageSection, WikiPage, WikiSpace } from "@/types/wiki";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useAuth } from "@/contexts/AuthContext";
+
+type Workspace = {
+  id: number;
+  name: string;
+  slug: string;
+};
 
 type ApiPage = {
   id: number;
@@ -33,23 +41,60 @@ type ApiPage = {
 
 export default function SpaceSlugPage() {
   const params = useParams<{ slug: string }>();
+  const router = useRouter();
+  const { token } = useAuth();
   const slug = params?.slug;
 
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [spaces, setSpaces] = useState<WikiSpace[]>([]);
   const [pages, setPages] = useState<WikiPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch current workspace
+  useEffect(() => {
+    const fetchWorkspace = async () => {
+      if (!token) return;
+
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/workspaces/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.length > 0) {
+            setCurrentWorkspace(data[0]);
+          } else {
+            router.push("/workspace/setup");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch workspace:", err);
+      }
+    };
+
+    fetchWorkspace();
+  }, [token, router]);
+
   useEffect(() => {
     const fetchSpaceAndPages = async () => {
-      if (!slug) return;
+      if (!slug || !currentWorkspace || !token) return;
+
       setLoading(true);
       setError(null);
       try {
-        const spaceResp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/spaces/slug/${slug}`);
+        const spaceResp = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/spaces/slug/${slug}?workspace_id=${currentWorkspace.id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
         if (!spaceResp.ok) {
           throw new Error(`Space not found (${spaceResp.status})`);
         }
+
         const spaceData = await spaceResp.json();
         const space: WikiSpace = {
           id: spaceData.id,
@@ -60,11 +105,16 @@ export default function SpaceSlugPage() {
         };
 
         const pagesResp = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/pages?space_id=${space.id}&limit=100`
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/pages?space_id=${space.id}&limit=100`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
         );
+
         if (!pagesResp.ok) {
           throw new Error(`Failed to load pages (${pagesResp.status})`);
         }
+
         const pagesData: ApiPage[] = await pagesResp.json();
         const normalizedPages: WikiPage[] = pagesData.map((p) => ({
           id: p.id,
@@ -102,7 +152,7 @@ export default function SpaceSlugPage() {
     };
 
     fetchSpaceAndPages();
-  }, [slug]);
+  }, [slug, currentWorkspace, token]);
 
   const space = useMemo(
     () => spaces.find((s) => s.slug === slug),
@@ -110,76 +160,95 @@ export default function SpaceSlugPage() {
   );
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <WikiHeader />
-      <div className="flex flex-1">
-        <WikiSidebar
-          spaces={spaces}
-          recentPages={pages.map((p) => ({
-            id: String(p.id),
-            title: p.title,
-            slug: p.slug,
-          }))}
-        />
-        <main className="flex-1 overflow-auto p-6">
-          {loading && (
-            <div className="text-zinc-500 dark:text-zinc-400">Loading space...</div>
-          )}
-          {error && (
-            <div className="text-red-600 dark:text-red-400">{error}</div>
-          )}
-          {!loading && !error && space && (
-            <div className="max-w-4xl space-y-6">
-              <header className="border-b border-zinc-200 pb-4 dark:border-zinc-800">
-                <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {space.name}
-                </h1>
-                {space.description && (
-                  <p className="mt-2 text-zinc-600 dark:text-zinc-400">{space.description}</p>
-                )}
-              </header>
+    <ProtectedRoute>
+      <div className="flex min-h-screen flex-col">
+        <WikiHeader />
+        <div className="flex flex-1">
+          <WikiSidebar
+            spaces={spaces}
+            recentPages={pages.map((p) => ({
+              id: String(p.id),
+              title: p.title,
+              slug: p.slug,
+            }))}
+          />
+          <main className="flex-1 overflow-auto p-6">
+            {loading && (
+              <div className="text-zinc-500 dark:text-zinc-400">Loading space...</div>
+            )}
+            {error && (
+              <div className="text-red-600 dark:text-red-400">{error}</div>
+            )}
+            {!loading && !error && space && (
+              <div className="max-w-4xl space-y-6">
+                <header className="border-b border-zinc-200 pb-4 dark:border-zinc-800">
+                  <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+                    {space.name}
+                  </h1>
+                  {space.description && (
+                    <p className="mt-2 text-zinc-600 dark:text-zinc-400">{space.description}</p>
+                  )}
+                </header>
 
-              {pages.length > 0 ? (
-                <ul className="space-y-3">
-                  {pages.map((page) => (
-                    <li key={page.id} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-                      <div className="flex items-center justify-between">
-                        <div>
+                {pages.length > 0 ? (
+                  <ul className="space-y-3">
+                    {pages.map((page) => (
+                      <li key={page.id} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Link
+                              href={`/wiki/${page.slug}`}
+                              className="text-lg font-semibold text-zinc-900 hover:underline dark:text-zinc-50"
+                            >
+                              {page.title}
+                            </Link>
+                            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                              Last updated {new Date(page.updatedAt).toLocaleDateString()}
+                            </p>
+                          </div>
                           <Link
                             href={`/wiki/${page.slug}`}
-                            className="text-lg font-semibold text-zinc-900 hover:underline dark:text-zinc-50"
+                            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
                           >
-                            {page.title}
+                            View
                           </Link>
-                          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                            Last updated {new Date(page.updatedAt).toLocaleDateString()}
-                          </p>
                         </div>
-                        <Link
-                          href={`/wiki/${page.slug}`}
-                          className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-                        >
-                          View
-                        </Link>
-                      </div>
-                      {page.sections && page.sections.length > 0 && (
-                        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
-                          {page.sections[0].text || page.sections[0].header || page.content}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-zinc-600 dark:text-zinc-400">No pages in this space yet.</p>
-              )}
-            </div>
-          )}
-          {!loading && !error && !space && (
-            <div className="text-zinc-600 dark:text-zinc-400">Space not found.</div>
-          )}
-        </main>
+                        {page.sections && page.sections.length > 0 && (
+                          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
+                            {page.sections[0].text || page.sections[0].header || page.content}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="mb-4 text-6xl">📄</div>
+                    <p className="text-zinc-600 dark:text-zinc-400 mb-4">No pages in this space yet.</p>
+                    <Link
+                      href="/page/new"
+                      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
+                    >
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
+                      Create Page
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+            {!loading && !error && !space && (
+              <div className="text-zinc-600 dark:text-zinc-400">Space not found.</div>
+            )}
+          </main>
+        </div>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }

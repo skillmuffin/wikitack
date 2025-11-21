@@ -107,7 +107,7 @@ export const parseSectionMarkup = (input: string): PageSection[] => {
       const normalizedType = normalizeType(type);
 
       let header = headerWithColon ?? headerWithSpace;
-      let contextValue = context;
+      let contextValue: string | undefined = context;
 
       // For non-snippet blocks, treat a lone token as header when no explicit header is given.
       if (!header && contextValue && normalizedType !== "snippet" && normalizedType !== "picture") {

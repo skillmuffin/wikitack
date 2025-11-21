@@ -51,10 +51,11 @@ async def health():
 
 
 # API routes
-from app.api import users, spaces, pages, revisions, tags, auth
+from app.api import users, workspaces, spaces, pages, revisions, tags, auth
 
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(users.router, prefix=settings.API_V1_PREFIX)
+app.include_router(workspaces.router, prefix=f"{settings.API_V1_PREFIX}/workspaces", tags=["workspaces"])
 app.include_router(spaces.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pages.router, prefix=settings.API_V1_PREFIX)
 app.include_router(revisions.router, prefix=settings.API_V1_PREFIX)

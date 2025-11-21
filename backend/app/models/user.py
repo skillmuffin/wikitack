@@ -6,6 +6,8 @@ from app.db.session import Base
 from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.workspace import Workspace
+    from app.models.workspace_member import WorkspaceMember
     from app.models.space import Space
     from app.models.page import Page
     from app.models.revision import Revision
@@ -24,6 +26,12 @@ class User(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships
+    owned_workspaces: Mapped[list["Workspace"]] = relationship(
+        "Workspace", back_populates="owner", foreign_keys="Workspace.owner_id"
+    )
+    workspace_memberships: Mapped[list["WorkspaceMember"]] = relationship(
+        "WorkspaceMember", back_populates="user"
+    )
     owned_spaces: Mapped[list["Space"]] = relationship(
         "Space", back_populates="owner", foreign_keys="Space.owner_id"
     )

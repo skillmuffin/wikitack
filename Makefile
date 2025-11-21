@@ -1,4 +1,4 @@
-.PHONY: help activate db-up db-down db-restart db-logs backend-up backend-down backend-restart backend-build backend-logs backend-dev backend-shell frontend-up frontend-down frontend-restart frontend-build frontend-logs up down restart logs build clean ps
+.PHONY: help activate db-up db-down db-restart db-logs db-reset backend-up backend-down backend-restart backend-build backend-logs backend-dev backend-shell frontend-up frontend-down frontend-restart frontend-build frontend-logs up down restart logs build clean ps
 
 # Default target
 help:
@@ -10,6 +10,7 @@ help:
 	@echo "  make db-down     - Stop database and pgAdmin services"
 	@echo "  make db-restart  - Restart database and pgAdmin services"
 	@echo "  make db-logs     - View database and pgAdmin logs"
+	@echo "  make db-reset    - ⚠️  DELETE ALL DATA and reset database"
 	@echo ""
 	@echo "Backend (Container):"
 	@echo "  make backend-up       - Start backend service"
@@ -72,6 +73,10 @@ db-restart:
 
 db-logs:
 	podman-compose -f podman-compose.db.yml logs -f
+
+db-reset:
+	@echo "⚠️  WARNING: This will DELETE ALL DATA in the database!"
+	cd backend && source .venv/bin/activate && python reset_db.py
 
 # Backend commands
 backend-up:

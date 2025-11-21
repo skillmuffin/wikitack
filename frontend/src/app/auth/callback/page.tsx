@@ -23,7 +23,29 @@ function CallbackContent() {
       if (token) {
         try {
           await login(token);
-          router.push('/');
+
+          // Check if user has a workspace
+          const workspacesResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL}/workspaces/`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          if (workspacesResponse.ok) {
+            const workspaces = await workspacesResponse.json();
+            // If user has no workspaces, redirect to setup
+            if (workspaces.length === 0) {
+              router.push('/workspace/setup');
+            } else {
+              router.push('/dashboard');
+            }
+          } else {
+            // If we can't check workspaces, just go to dashboard
+            router.push('/dashboard');
+          }
         } catch (err) {
           console.error('Login failed:', err);
           router.push('/login?error=authentication_failed');

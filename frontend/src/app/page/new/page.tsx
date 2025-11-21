@@ -1,15 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { WikiSpace, PageSection } from "@/types/wiki";
 import WikiHeader from "@/components/WikiHeader";
 import { parseSectionMarkup, sectionsToMarkup } from "@/lib/sectionMarkup";
+import CreateSpaceModal from "@/components/CreateSpaceModal";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+
+const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
+
+type Workspace = {
+  id: number;
+  name: string;
+  slug: string;
+};
 
 export default function NewPagePage() {
-  const { isAuthenticated, user, token } = useAuth();
+  const { user, token } = useAuth();
   const router = useRouter();
 
   const [spaces, setSpaces] = useState<WikiSpace[]>([]);
@@ -17,6 +27,9 @@ export default function NewPagePage() {
   const [spaceSearch, setSpaceSearch] = useState("");
   const [selectedSpace, setSelectedSpace] = useState<WikiSpace | null>(null);
   const [showSpaceDropdown, setShowSpaceDropdown] = useState(false);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
+  const [isCreateSpaceModalOpen, setIsCreateSpaceModalOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [sectionMarkup, setSectionMarkup] = useState("");
@@ -25,28 +38,95 @@ export default function NewPagePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect if not authenticated
+  // Fetch workspaces for the user
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/login");
-    }
-  }, [isAuthenticated, router]);
-
-  // Fetch spaces
-  useEffect(() => {
-    const fetchSpaces = async () => {
+    const fetchWorkspaces = async () => {
+      if (!token) return;
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/spaces?limit=100`);
-        if (!response.ok) throw new Error("Failed to fetch spaces");
+        const response = await fetch(`${apiBase}/workspaces/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error("Failed to fetch workspaces");
         const data = await response.json();
-        setSpaces(data);
-        setFilteredSpaces(data);
+        setWorkspaces(data);
+        if (data.length === 0) {
+          router.push("/workspace/setup");
+        } else {
+          const storedWorkspaceId = localStorage.getItem("selected_workspace_id");
+          const preferred = storedWorkspaceId
+            ? data.find((w: Workspace) => w.id === Number(storedWorkspaceId))
+            : null;
+          setCurrentWorkspace(preferred || data[0]);
+        }
       } catch (err: any) {
-        setError(err.message);
+        setError(err.message || "Unable to load workspaces");
       }
     };
-    fetchSpaces();
-  }, []);
+
+    fetchWorkspaces();
+  }, [token, router]);
+
+  const fetchSpacesForWorkspace = useCallback(
+    async (workspaceId: number, selectSpaceId?: number) => {
+      if (!token) return;
+      try {
+        const response = await fetch(
+          `${apiBase}/spaces/?workspace_id=${workspaceId}&limit=100`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (!response.ok) {
+          const message =
+            response.status === 403
+              ? "You do not have access to spaces in this workspace. Try creating a new space."
+              : "Failed to fetch spaces";
+          throw new Error(message);
+        }
+        const data: WikiSpace[] = await response.json();
+        setSpaces(data);
+        setFilteredSpaces(data);
+
+        if (selectSpaceId) {
+          const newSelection = data.find((s) => s.id === selectSpaceId) || null;
+          setSelectedSpace(newSelection);
+        } else if (selectedSpace) {
+          const stillExists = data.find((s) => s.id === selectedSpace.id);
+          if (!stillExists) {
+            setSelectedSpace(null);
+          }
+        }
+      } catch (err: any) {
+        setError(err.message || "Unable to load spaces");
+      }
+    },
+    [selectedSpace, token]
+  );
+
+  // Fetch spaces when workspace changes
+  useEffect(() => {
+    if (currentWorkspace) {
+      fetchSpacesForWorkspace(currentWorkspace.id);
+    }
+  }, [currentWorkspace, fetchSpacesForWorkspace]);
+
+  const handleSpaceCreated = useCallback(
+    (space?: { id: number; name: string; slug: string; description?: string | null }) => {
+      if (!currentWorkspace) return;
+      fetchSpacesForWorkspace(currentWorkspace.id, space?.id);
+      if (space) {
+        setSelectedSpace({
+          id: space.id,
+          name: space.name,
+          slug: space.slug,
+          description: space.description ?? undefined,
+        });
+        setSpaceSearch("");
+      }
+      setShowSpaceDropdown(false);
+    },
+    [currentWorkspace, fetchSpacesForWorkspace]
+  );
 
   // Filter spaces based on search
   useEffect(() => {
@@ -186,247 +266,287 @@ export default function NewPagePage() {
     }
   };
 
-  if (!isAuthenticated) {
-    return null;
-  }
-
   return (
-    <div className="flex min-h-screen flex-col">
-      <WikiHeader />
-      <main className="flex-1 bg-zinc-50 dark:bg-zinc-950">
-        <div className="mx-auto max-w-3xl px-6 py-12">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">Create New Page</h1>
-            <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-              Add a new page to your wiki
-            </p>
-          </div>
-
-          <form onSubmit={handleCreate} className="space-y-6 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            {/* Space Selector - First Option */}
-            <div className="relative">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Space <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="Search and select a space..."
-                value={selectedSpace ? selectedSpace.name : spaceSearch}
-                onChange={(e) => {
-                  setSpaceSearch(e.target.value);
-                  setSelectedSpace(null);
-                  setShowSpaceDropdown(true);
-                }}
-                onFocus={() => setShowSpaceDropdown(true)}
-                className="w-full rounded-md border border-zinc-300 px-4 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:focus:border-zinc-400"
-              />
-              {showSpaceDropdown && filteredSpaces.length > 0 && (
-                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-zinc-300 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
-                  {filteredSpaces.map((space) => (
-                    <button
-                      key={space.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedSpace(space);
-                        setSpaceSearch("");
-                        setShowSpaceDropdown(false);
-                      }}
-                      className="w-full px-4 py-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                    >
-                      <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                        {space.name}
-                      </div>
-                      {space.description && (
-                        <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                          {space.description}
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {selectedSpace && (
-                <div className="mt-2 rounded-md bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {selectedSpace.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSpace(null)}
-                      className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Title */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="Enter page title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-md border border-zinc-300 px-4 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:focus:border-zinc-400"
-              />
-            </div>
-
-            {/* Slug */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Slug <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="page-slug"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                className="w-full rounded-md border border-zinc-300 px-4 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:focus:border-zinc-400"
-              />
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                Auto-generated from title. You can edit it if needed.
+    <ProtectedRoute>
+      <div className="flex min-h-screen flex-col">
+        <WikiHeader />
+        <main className="flex-1 bg-zinc-50 dark:bg-zinc-950">
+          <div className="mx-auto max-w-3xl px-6 py-12">
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">Create New Page</h1>
+              <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+                Add a new page to your wiki
               </p>
             </div>
 
-            {/* Content markup */}
-            <div className="space-y-4 rounded-lg border border-zinc-200 bg-white p-4 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40">
+            <form onSubmit={handleCreate} className="space-y-6 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              {/* Space Selector - First Option */}
+              <div className="relative">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Space <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateSpaceModalOpen(true)}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    disabled={!currentWorkspace}
+                  >
+                    + Create space
+                  </button>
+                </div>
+                {currentWorkspace && (
+                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    Workspace: {currentWorkspace.name}
+                  </p>
+                )}
+                <input
+                  type="text"
+                  placeholder="Search and select a space..."
+                  value={selectedSpace ? selectedSpace.name : spaceSearch}
+                  onChange={(e) => {
+                    setSpaceSearch(e.target.value);
+                    setSelectedSpace(null);
+                    setShowSpaceDropdown(true);
+                  }}
+                  onFocus={() => setShowSpaceDropdown(true)}
+                  className="w-full rounded-md border border-zinc-300 px-4 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:focus:border-zinc-400"
+                />
+                {showSpaceDropdown && (
+                  <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-zinc-300 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+                    {filteredSpaces.length > 0 ? (
+                      filteredSpaces.map((space) => (
+                        <button
+                          key={space.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSpace(space);
+                            setSpaceSearch("");
+                            setShowSpaceDropdown(false);
+                          }}
+                          className="w-full px-4 py-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                        >
+                          <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                            {space.name}
+                          </div>
+                          {space.description && (
+                            <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                              {space.description}
+                            </div>
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">
+                        No spaces found.
+                      </div>
+                    )}
+                    <div className="border-t border-zinc-200 dark:border-zinc-700">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreateSpaceModalOpen(true);
+                          setShowSpaceDropdown(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-blue-600 hover:bg-zinc-100 dark:text-blue-400 dark:hover:bg-zinc-700"
+                        disabled={!currentWorkspace}
+                      >
+                        <span>+ Create a new space</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {selectedSpace && (
+                  <div className="mt-2 rounded-md bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                        {selectedSpace.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSpace(null)}
+                        className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                  Content markup
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Title <span className="text-red-500">*</span>
                 </label>
-                <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                  Use <span className="font-mono">:::info</span>, <span className="font-mono">:::warning</span>,{" "}
-                  <span className="font-mono">:::error</span>, <span className="font-mono">:::code &lt;lang&gt;</span>, or{" "}
-                  <span className="font-mono">:::paragraph</span> blocks ending with <span className="font-mono">:::end</span>.
+                <input
+                  type="text"
+                  placeholder="Enter page title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full rounded-md border border-zinc-300 px-4 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:focus:border-zinc-400"
+                />
+              </div>
+
+              {/* Slug */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Slug <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="page-slug"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  className="w-full rounded-md border border-zinc-300 px-4 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:focus:border-zinc-400"
+                />
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Auto-generated from title. You can edit it if needed.
                 </p>
               </div>
-              <textarea
-                placeholder={`:::info: Getting access\nYou will need VPN and SSO to start.\n:::end\n\n:::code shell: Install deps\nbrew install pyenv node\n:::end`}
-                value={sectionMarkup}
-                onChange={(e) => handleMarkupChange(e.target.value)}
-                rows={10}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-xs text-zinc-800 focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
-              {markupError && (
-                <p className="text-xs text-red-600 dark:text-red-400">{markupError}</p>
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => addSection("info")}
-                  className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-                >
-                  <InfoIcon />
-                  Add Info
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addSection("warning")}
-                  className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600 dark:bg-amber-500 dark:hover:bg-amber-600"
-                >
-                  <WarningIcon />
-                  Add Warning
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addSection("error")}
-                  className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
-                >
-                  <ErrorIcon />
-                  Add Error
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addSection("snippet")}
-                  className="inline-flex items-center gap-1 rounded-md bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-700"
-                >
-                  <CodeIcon />
-                  Add Code
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addSection("paragraph")}
-                  className="inline-flex items-center gap-1 rounded-md bg-zinc-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 dark:bg-zinc-500 dark:hover:bg-zinc-600"
-                >
-                  <ParagraphIcon />
-                  Add Paragraph
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleMarkupChange(sectionMarkup)}
-                  className="ml-auto rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                >
-                  Apply markup
-                </button>
+
+              {/* Content markup */}
+              <div className="space-y-4 rounded-lg border border-zinc-200 bg-white p-4 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                    Content markup
+                  </label>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                    Use <span className="font-mono">:::info</span>, <span className="font-mono">:::warning</span>,{" "}
+                    <span className="font-mono">:::error</span>, <span className="font-mono">:::code &lt;lang&gt;</span>, or{" "}
+                    <span className="font-mono">:::paragraph</span> blocks ending with <span className="font-mono">:::end</span>.
+                  </p>
+                </div>
+                <textarea
+                  placeholder={`:::info: Getting access\nYou will need VPN and SSO to start.\n:::end\n\n:::code shell: Install deps\nbrew install pyenv node\n:::end`}
+                  value={sectionMarkup}
+                  onChange={(e) => handleMarkupChange(e.target.value)}
+                  rows={10}
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-xs text-zinc-800 focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                />
+                {markupError && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{markupError}</p>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => addSection("info")}
+                    className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                  >
+                    <InfoIcon />
+                    Add Info
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addSection("warning")}
+                    className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600 dark:bg-amber-500 dark:hover:bg-amber-600"
+                  >
+                    <WarningIcon />
+                    Add Warning
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addSection("error")}
+                    className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
+                  >
+                    <ErrorIcon />
+                    Add Error
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addSection("snippet")}
+                    className="inline-flex items-center gap-1 rounded-md bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-700"
+                  >
+                    <CodeIcon />
+                    Add Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addSection("paragraph")}
+                    className="inline-flex items-center gap-1 rounded-md bg-zinc-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 dark:bg-zinc-500 dark:hover:bg-zinc-600"
+                  >
+                    <ParagraphIcon />
+                    Add Paragraph
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMarkupChange(sectionMarkup)}
+                    className="ml-auto rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    Apply markup
+                  </button>
+                </div>
+                {sections.length > 0 && (
+                  <div className="space-y-3">
+                    {sections.map((section, idx) => (
+                      <SectionEditor
+                        key={section.id ?? `section-${section.position}-${idx}`}
+                        section={section}
+                        index={idx}
+                        totalSections={sections.length}
+                        onChange={(updated) =>
+                          updateSections((prev) =>
+                            prev.map((s, i) => (i === idx ? { ...s, ...updated } : s))
+                          )
+                        }
+                        onDelete={() => updateSections((prev) => prev.filter((_, i) => i !== idx))}
+                        onMoveUp={() =>
+                          updateSections((prev) => {
+                            if (idx === 0) return prev;
+                            const next = [...prev];
+                            [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                            return next;
+                          })
+                        }
+                        onMoveDown={() =>
+                          updateSections((prev) => {
+                            if (idx === prev.length - 1) return prev;
+                            const next = [...prev];
+                            [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                            return next;
+                          })
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              {sections.length > 0 && (
-                <div className="space-y-3">
-                  {sections.map((section, idx) => (
-                    <SectionEditor
-                      key={section.id ?? `section-${section.position}-${idx}`}
-                      section={section}
-                      index={idx}
-                      totalSections={sections.length}
-                      onChange={(updated) =>
-                        updateSections((prev) =>
-                          prev.map((s, i) => (i === idx ? { ...s, ...updated } : s))
-                        )
-                      }
-                      onDelete={() => updateSections((prev) => prev.filter((_, i) => i !== idx))}
-                      onMoveUp={() =>
-                        updateSections((prev) => {
-                          if (idx === 0) return prev;
-                          const next = [...prev];
-                          [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-                          return next;
-                        })
-                      }
-                      onMoveDown={() =>
-                        updateSections((prev) => {
-                          if (idx === prev.length - 1) return prev;
-                          const next = [...prev];
-                          [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-                          return next;
-                        })
-                      }
-                    />
-                  ))}
+
+              {error && (
+                <div className="rounded-md bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                  {error}
                 </div>
               )}
-            </div>
 
-            {error && (
-              <div className="rounded-md bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
-                {error}
+              {/* Actions */}
+              <div className="flex justify-end gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+                <Link
+                  href="/"
+                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  Cancel
+                </Link>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  {loading ? "Creating..." : "Create Page"}
+                </button>
               </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex justify-end gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-              <Link
-                href="/"
-                className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={loading}
-                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-              >
-                {loading ? "Creating..." : "Create Page"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </main>
-    </div>
+            </form>
+          </div>
+        </main>
+        {currentWorkspace && (
+          <CreateSpaceModal
+            workspaceId={currentWorkspace.id}
+            isOpen={isCreateSpaceModalOpen}
+            onClose={() => setIsCreateSpaceModalOpen(false)}
+            onSuccess={(space) => handleSpaceCreated(space)}
+          />
+        )}
+      </div>
+    </ProtectedRoute>
   );
 }
 

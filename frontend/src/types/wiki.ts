@@ -27,6 +27,7 @@ export interface WikiSpace {
   id: number;
   name: string;
   slug: string;
+  workspaceId?: number;
   description?: string | null;
   pageCount?: number;
 }

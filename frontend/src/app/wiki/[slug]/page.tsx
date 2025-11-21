@@ -7,6 +7,10 @@ import WikiHeader from "@/components/WikiHeader";
 import WikiSidebar from "@/components/WikiSidebar";
 import WikiContent from "@/components/WikiContent";
 import { PageSection, WikiPage, WikiSpace } from "@/types/wiki";
+import { useAuth } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+
+const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
 type ApiUser = {
   id: number;
@@ -18,6 +22,13 @@ type ApiUser = {
 type ApiPage = {
   id: number;
   space_id: number;
+  space?: {
+    id: number;
+    name: string;
+    slug: string;
+    description?: string | null;
+    workspace_id?: number;
+  };
   title: string;
   content: string | null;
   slug: string;
@@ -45,6 +56,7 @@ type ApiPage = {
 export default function WikiSlugPage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug;
+  const { token } = useAuth();
 
   const [pages, setPages] = useState<WikiPage[]>([]);
   const [spaces, setSpaces] = useState<WikiSpace[]>([]);
@@ -53,43 +65,34 @@ export default function WikiSlugPage() {
 
   useEffect(() => {
     const fetchPages = async () => {
+      if (!token) return;
       setLoading(true);
       setError(null);
       try {
-        const [pagesResp, spacesResp] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/pages?limit=100`),
-          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/spaces?limit=100`),
-        ]);
+        const pagesResp = await fetch(`${apiBase}/pages?limit=100`, {
+          headers: token
+            ? {
+                Authorization: `Bearer ${token}`,
+              }
+            : undefined,
+        });
 
         if (!pagesResp.ok) {
+          if (pagesResp.status === 401) {
+            throw new Error("Please log in to view pages.");
+          }
           throw new Error(`Failed to load pages (${pagesResp.status})`);
         }
-        if (!spacesResp.ok) {
-          throw new Error(`Failed to load spaces (${spacesResp.status})`);
-        }
 
-        const [pagesData, spacesData]: [ApiPage[], any[]] = await Promise.all([
-          pagesResp.json(),
-          spacesResp.json(),
-        ]);
+        const pagesData: ApiPage[] = await pagesResp.json();
 
         const spacesIndexed: Record<number, WikiSpace> = {};
-        spacesData.forEach((s: any) => {
-          spacesIndexed[s.id] = {
-            id: s.id,
-            name: s.name,
-            slug: s.slug,
-            description: s.description ?? undefined,
-            pageCount: undefined,
-          };
-        });
-        setSpaces(Object.values(spacesIndexed));
 
         const normalized: WikiPage[] = pagesData.map((p) => ({
           id: p.id,
           spaceId: p.space_id,
-          spaceName: spacesIndexed[p.space_id]?.name,
-          spaceSlug: spacesIndexed[p.space_id]?.slug,
+          spaceName: p.space?.name ?? spacesIndexed[p.space_id]?.name,
+          spaceSlug: p.space?.slug ?? spacesIndexed[p.space_id]?.slug,
           title: p.title,
           content: p.content ?? "",
           slug: p.slug,
@@ -121,9 +124,23 @@ export default function WikiSlugPage() {
               mediaUrl: s.media_url,
               caption: s.caption,
               code: s.code,
-              language: s.language,
-            })) ?? [],
+            language: s.language,
+          })) ?? [],
         }));
+        normalized.forEach((page) => {
+          if (page.spaceId && !spacesIndexed[page.spaceId]) {
+            const spaceDetails = pagesData.find((p) => p.id === page.id)?.space;
+            spacesIndexed[page.spaceId] = {
+              id: page.spaceId,
+              name: spaceDetails?.name ?? page.spaceName ?? "Untitled space",
+              slug: spaceDetails?.slug ?? page.spaceSlug ?? String(page.spaceId),
+              description: spaceDetails?.description ?? undefined,
+              workspaceId: spaceDetails?.workspace_id,
+              pageCount: undefined,
+            };
+          }
+        });
+        setSpaces(Object.values(spacesIndexed));
         setPages(normalized);
       } catch (err: any) {
         setError(err.message || "Failed to load page");
@@ -133,7 +150,7 @@ export default function WikiSlugPage() {
     };
 
     fetchPages();
-  }, []);
+  }, [token]);
 
   const selectedPage = useMemo(
     () => pages.find((p) => p.slug === slug),
@@ -141,25 +158,27 @@ export default function WikiSlugPage() {
   );
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <WikiHeader />
-      <div className="flex flex-1">
-        <WikiSidebar
-          spaces={spaces}
-          recentPages={pages.map((p) => ({
-            id: String(p.id),
-            title: p.title,
-            slug: p.slug,
-          }))}
-        />
-        <main className="flex-1 overflow-auto">
-          {error ? (
-            <div className="p-6 text-red-600 dark:text-red-400">{error}</div>
-          ) : (
-            <WikiContent page={selectedPage} isLoading={loading} />
-          )}
-        </main>
+    <ProtectedRoute>
+      <div className="flex min-h-screen flex-col">
+        <WikiHeader />
+        <div className="flex flex-1">
+          <WikiSidebar
+            spaces={spaces}
+            recentPages={pages.map((p) => ({
+              id: String(p.id),
+              title: p.title,
+              slug: p.slug,
+            }))}
+          />
+          <main className="flex-1 overflow-auto">
+            {error ? (
+              <div className="p-6 text-red-600 dark:text-red-400">{error}</div>
+            ) : (
+              <WikiContent page={selectedPage} isLoading={loading} />
+            )}
+          </main>
+        </div>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }

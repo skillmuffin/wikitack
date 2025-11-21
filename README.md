@@ -13,6 +13,7 @@ A modern collaborative wiki platform with structured content sections, Google OA
 - [Custom Markup Language](#custom-markup-language)
 - [Architecture Patterns](#architecture-patterns)
 - [Security](#security)
+- [Email Invites](#email-invites)
 
 ---
 
@@ -750,6 +751,14 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
 
 ---
 
+## Email Invites
+
+- Workspace invites can optionally send emails to non-enrolled users when SMTP settings are provided.
+- Configure in backend env: `SMTP_HOST`, `SMTP_PORT` (default 587), `SMTP_USER`, `SMTP_PASS`, and `INVITE_FROM_EMAIL` (defaults to `SMTP_USER`).
+- If SMTP is missing, invites still return 202 but no email is sent.
+
+---
+
 ## Contributing
 
 ### Adding New Features
@@ -833,5 +842,11 @@ cd backend && alembic upgrade head
 - Added tagging system
 
 ---
+python3 -m venv .venv
+
+   cd backend
+	source .venv/bin/activate
+	pip install -e .
+	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 **Built with FastAPI, Next.js, PostgreSQL, and modern web technologies.**
