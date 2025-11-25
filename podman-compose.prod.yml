@@ -1,0 +1,79 @@
+
+version: "3.8"
+
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    container_name: wikitack-postgres
+    environment:
+      POSTGRES_USER: wikitack
+      POSTGRES_PASSWORD: wikitack_prod_password
+      POSTGRES_DB: wikitack
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wikitack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wikitack-backend
+    env_file:
+      - ./backend/.env.prod
+    environment:
+      DATABASE_URL: postgresql://wikitack:wikitack_prod_password@postgres:5432/wikitack
+      ENVIRONMENT: production
+      DEBUG: "false"
+      CORS_ORIGINS: '["https://wikitack.com", "https://www.wikitack.com"]'
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+
+  pgadmin:
+    image: docker.io/dpage/pgadmin4:latest
+    container_name: wikitack-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: "https://api.wikitack.com/api/v1"
+        NEXT_PUBLIC_API_URL: "https://api.wikitack.com"
+    container_name: wikitack-frontend
+    env_file:
+      - ./frontend/.env.container.prod
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  pgadmin_data:
