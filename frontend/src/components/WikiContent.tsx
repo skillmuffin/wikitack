@@ -263,7 +263,7 @@ export default function WikiContent({ page, isLoading = false, onUpdated }: Wiki
               </div>
               {draftSections.map((section, idx) => (
                 <SectionEditor
-                  key={section.id ?? idx}
+                  key={`${section.id ?? "draft"}-${idx}`}
                   section={section}
                   index={idx}
                   totalSections={draftSections.length}
@@ -304,11 +304,16 @@ export default function WikiContent({ page, isLoading = false, onUpdated }: Wiki
         ) : displayPage.sections && displayPage.sections.length > 0 ? (
           displayPage.sections
             .sort((a, b) => a.position - b.position)
-            .map((section, idx) => (
-              <SectionRenderer
-                key={section.id ?? `section-${section.position}-${idx}`}
-                section={section}
-              />
+            .map((section, idx, arr) => (
+              <div
+                key={`${section.id ?? "section"}-${section.position ?? idx}-${idx}`}
+                className="space-y-8"
+              >
+                <SectionRenderer section={section} />
+                {idx < arr.length - 1 && (
+                  <hr className="border-zinc-200 dark:border-zinc-800 mb-10" />
+                )}
+              </div>
             ))
         ) : (
           <div className="prose prose-zinc dark:prose-invert max-w-none">
@@ -481,8 +486,8 @@ function SectionRenderer({ section }: { section: PageSection }) {
   if (sectionType === "paragraph") {
     return (
       <section className="prose prose-zinc dark:prose-invert max-w-none">
-        {header && <h2>{header}</h2>}
-        {text && <p className="whitespace-pre-wrap">{text}</p>}
+        {header && <h2 className="mb-3 text-2xl font-semibold tracking-tight text-zinc-100 dark:text-zinc-50">{header}</h2>}
+        {text && <p className="mt-0 whitespace-pre-wrap">{text}</p>}
       </section>
     );
   }
@@ -677,18 +682,18 @@ function SectionEditor({
       ) : (
         <>
           {["paragraph", "info", "warning", "error"].includes(section.sectionType) && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <input
                 value={section.header || ""}
                 onChange={(e) => onChange({ header: e.target.value })}
                 placeholder="Header (optional)"
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                className="w-full rounded-md border border-transparent px-0 py-1 text-2xl font-semibold leading-tight text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-0 dark:text-zinc-50 dark:focus:border-zinc-400"
               />
               <textarea
                 value={section.text || ""}
                 onChange={(e) => onChange({ text: e.target.value })}
                 placeholder="Text content"
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                className="w-full rounded-md border border-zinc-300 px-3 py-3 text-base leading-relaxed dark:border-zinc-700 dark:bg-zinc-900"
                 rows={4}
               />
             </div>

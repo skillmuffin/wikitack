@@ -1,8 +1,8 @@
-"""Initial tables
+"""initial schema
 
-Revision ID: c4f0c020069a
+Revision ID: e66563560e30
 Revises: 
-Create Date: 2025-11-16 14:32:04.628029
+Create Date: 2025-11-22 18:20:41.989376
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'c4f0c020069a'
+revision = 'e66563560e30'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -43,8 +43,22 @@ def upgrade() -> None:
     sa.UniqueConstraint('username')
     )
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
+    op.create_table('workspaces',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.Text(), nullable=False),
+    sa.Column('slug', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('owner_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_workspaces_id'), 'workspaces', ['id'], unique=False)
+    op.create_index(op.f('ix_workspaces_slug'), 'workspaces', ['slug'], unique=True)
     op.create_table('spaces',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('workspace_id', sa.Integer(), nullable=False),
     sa.Column('name', sa.Text(), nullable=False),
     sa.Column('slug', sa.Text(), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
@@ -53,10 +67,23 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('slug')
+    sa.ForeignKeyConstraint(['workspace_id'], ['workspaces.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_spaces_id'), 'spaces', ['id'], unique=False)
+    op.create_table('workspace_members',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('workspace_id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('role', sa.String(length=50), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['workspace_id'], ['workspaces.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('workspace_id', 'user_id', name='uix_workspace_user')
+    )
+    op.create_index(op.f('ix_workspace_members_id'), 'workspace_members', ['id'], unique=False)
     op.create_table('pages',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('space_id', sa.Integer(), nullable=False),
@@ -78,6 +105,26 @@ def upgrade() -> None:
     op.create_index(op.f('ix_pages_slug'), 'pages', ['slug'], unique=False)
     op.create_index(op.f('ix_pages_space_id'), 'pages', ['space_id'], unique=False)
     op.create_index(op.f('ix_pages_title'), 'pages', ['title'], unique=False)
+    op.create_table('page_sections',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('page_id', sa.Integer(), nullable=False),
+    sa.Column('position', sa.Integer(), nullable=False),
+    sa.Column('section_type', sa.String(length=32), nullable=False),
+    sa.Column('header', sa.Text(), nullable=True),
+    sa.Column('text', sa.Text(), nullable=True),
+    sa.Column('media_url', sa.Text(), nullable=True),
+    sa.Column('caption', sa.Text(), nullable=True),
+    sa.Column('code', sa.Text(), nullable=True),
+    sa.Column('language', sa.String(length=64), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['page_id'], ['pages.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('page_id', 'position', name='uq_page_sections_page_position')
+    )
+    op.create_index(op.f('ix_page_sections_id'), 'page_sections', ['id'], unique=False)
+    op.create_index(op.f('ix_page_sections_page_id'), 'page_sections', ['page_id'], unique=False)
+    op.create_index(op.f('ix_page_sections_position'), 'page_sections', ['position'], unique=False)
     op.create_table('page_tags',
     sa.Column('page_id', sa.BigInteger(), nullable=False),
     sa.Column('tag_id', sa.BigInteger(), nullable=False),
@@ -113,13 +160,22 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_revisions_created_at'), table_name='revisions')
     op.drop_table('revisions')
     op.drop_table('page_tags')
+    op.drop_index(op.f('ix_page_sections_position'), table_name='page_sections')
+    op.drop_index(op.f('ix_page_sections_page_id'), table_name='page_sections')
+    op.drop_index(op.f('ix_page_sections_id'), table_name='page_sections')
+    op.drop_table('page_sections')
     op.drop_index(op.f('ix_pages_title'), table_name='pages')
     op.drop_index(op.f('ix_pages_space_id'), table_name='pages')
     op.drop_index(op.f('ix_pages_slug'), table_name='pages')
     op.drop_index(op.f('ix_pages_id'), table_name='pages')
     op.drop_table('pages')
+    op.drop_index(op.f('ix_workspace_members_id'), table_name='workspace_members')
+    op.drop_table('workspace_members')
     op.drop_index(op.f('ix_spaces_id'), table_name='spaces')
     op.drop_table('spaces')
+    op.drop_index(op.f('ix_workspaces_slug'), table_name='workspaces')
+    op.drop_index(op.f('ix_workspaces_id'), table_name='workspaces')
+    op.drop_table('workspaces')
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_table('users')
     op.drop_index(op.f('ix_tags_id'), table_name='tags')

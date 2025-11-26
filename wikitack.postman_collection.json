@@ -1,0 +1,826 @@
+{
+  "info": {
+    "_postman_id": "c2d7d0c3-3c5d-4f8f-bc0e-0e5a6bd2b441",
+    "name": "WikiTack API",
+    "description": "Postman collection for the WikiTack API. Set `base_url` to your server (defaults to local dev).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string",
+      "description": "API base URL"
+    }
+  ],
+  "item": [
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/?skip=0&limit=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/:user_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ":user_id"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "1",
+                  "description": "User ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User by Username",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/username/:username",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "username",
+                ":username"
+              ],
+              "variable": [
+                {
+                  "key": "username",
+                  "value": "demo_user",
+                  "description": "Username"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"demo_user\",\n  \"email\": \"demo@example.com\",\n  \"display_name\": \"Demo User\",\n  \"password\": \"secret123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"updated@example.com\",\n  \"display_name\": \"Updated Name\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/:user_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ":user_id"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "1",
+                  "description": "User ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Soft Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/:user_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ":user_id"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "1",
+                  "description": "User ID"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spaces",
+      "item": [
+        {
+          "name": "List Spaces",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/spaces/?skip=0&limit=50&include_private=false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "spaces",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "include_private",
+                  "value": "false"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Space by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/spaces/:space_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "spaces",
+                ":space_id"
+              ],
+              "variable": [
+                {
+                  "key": "space_id",
+                  "value": "1",
+                  "description": "Space ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Space by Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/spaces/slug/:slug",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "spaces",
+                "slug",
+                ":slug"
+              ],
+              "variable": [
+                {
+                  "key": "slug",
+                  "value": "platform",
+                  "description": "Space slug"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Space",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Platform Docs\",\n  \"slug\": \"platform\",\n  \"description\": \"Platform engineering documentation\",\n  \"owner_id\": 1,\n  \"is_private\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/spaces/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "spaces",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Space",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Space Name\",\n  \"description\": \"New description\",\n  \"is_private\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/spaces/:space_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "spaces",
+                ":space_id"
+              ],
+              "variable": [
+                {
+                  "key": "space_id",
+                  "value": "1",
+                  "description": "Space ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Space",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/spaces/:space_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "spaces",
+                ":space_id"
+              ],
+              "variable": [
+                {
+                  "key": "space_id",
+                  "value": "1",
+                  "description": "Space ID"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pages",
+      "item": [
+        {
+          "name": "List Pages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pages/?skip=0&limit=50&space_id=1&include_deleted=false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pages",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "space_id",
+                  "value": "1",
+                  "description": "Optional filter by space"
+                },
+                {
+                  "key": "include_deleted",
+                  "value": "false"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Page by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pages/:page_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pages",
+                ":page_id"
+              ],
+              "variable": [
+                {
+                  "key": "page_id",
+                  "value": "1",
+                  "description": "Page ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Page by Space & Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pages/space/:space_id/slug/:slug",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pages",
+                "space",
+                ":space_id",
+                "slug",
+                ":slug"
+              ],
+              "variable": [
+                {
+                  "key": "space_id",
+                  "value": "1",
+                  "description": "Space ID"
+                },
+                {
+                  "key": "slug",
+                  "value": "getting-started",
+                  "description": "Page slug within the space"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Page",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"space_id\": 1,\n  \"slug\": \"getting-started\",\n  \"title\": \"Getting Started\",\n  \"content\": \"# Welcome\\n\\nThis is your first page!\",\n  \"created_by\": 1,\n  \"tag_ids\": [1, 2]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/pages/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pages",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Page",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"content\": \"# Welcome\\n\\nUpdated content!\",\n  \"updated_by\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/pages/:page_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pages",
+                ":page_id"
+              ],
+              "variable": [
+                {
+                  "key": "page_id",
+                  "value": "1",
+                  "description": "Page ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Page",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pages/:page_id?soft_delete=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pages",
+                ":page_id"
+              ],
+              "query": [
+                {
+                  "key": "soft_delete",
+                  "value": "true"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "page_id",
+                  "value": "1",
+                  "description": "Page ID"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Revisions",
+      "item": [
+        {
+          "name": "List Revisions for Page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/revisions/page/:page_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "revisions",
+                "page",
+                ":page_id"
+              ],
+              "variable": [
+                {
+                  "key": "page_id",
+                  "value": "1",
+                  "description": "Page ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Revision by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/revisions/:revision_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "revisions",
+                ":revision_id"
+              ],
+              "variable": [
+                {
+                  "key": "revision_id",
+                  "value": "1",
+                  "description": "Revision ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Revision by Number for Page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/revisions/page/:page_id/number/:revision_number",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "revisions",
+                "page",
+                ":page_id",
+                "number",
+                ":revision_number"
+              ],
+              "variable": [
+                {
+                  "key": "page_id",
+                  "value": "1",
+                  "description": "Page ID"
+                },
+                {
+                  "key": "revision_number",
+                  "value": "1",
+                  "description": "Revision number for the page"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tags",
+      "item": [
+        {
+          "name": "List Tags",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags/?skip=0&limit=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Tag by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags/:tag_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                ":tag_id"
+              ],
+              "variable": [
+                {
+                  "key": "tag_id",
+                  "value": "1",
+                  "description": "Tag ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Tag by Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags/slug/:slug",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                "slug",
+                ":slug"
+              ],
+              "variable": [
+                {
+                  "key": "slug",
+                  "value": "engineering",
+                  "description": "Tag slug"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Tag",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Engineering\",\n  \"slug\": \"engineering\",\n  \"description\": \"Engineering documentation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tags/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Tag",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Tag Name\",\n  \"description\": \"Updated description\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tags/:tag_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                ":tag_id"
+              ],
+              "variable": [
+                {
+                  "key": "tag_id",
+                  "value": "1",
+                  "description": "Tag ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Tag",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags/:tag_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                ":tag_id"
+              ],
+              "variable": [
+                {
+                  "key": "tag_id",
+                  "value": "1",
+                  "description": "Tag ID"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

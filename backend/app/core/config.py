@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://wikitack:wikitack_dev_password@localhost:5432/wikitack"
 
+    # DATABASE_URL: str = "postgresql://wikitack:wikitack_dev_password@3.111.245.51:5432/wikitack"
+
+
     # Environment
     ENVIRONMENT: str = "development"
     DEBUG: bool = True

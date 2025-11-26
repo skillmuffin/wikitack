@@ -140,7 +140,20 @@ export default function WikiSlugPage() {
             };
           }
         });
-        setSpaces(Object.values(spacesIndexed));
+        // Remove accidental duplicates by id/slug/name
+        const dedupedSpaces = Object.values(spacesIndexed).reduce<WikiSpace[]>((acc, space) => {
+          const normalizedSlug = space.slug?.toLowerCase().trim();
+          const normalizedName = space.name?.toLowerCase().trim();
+          const exists = acc.some(
+            (s) =>
+              (space.id && s.id === space.id) ||
+              (normalizedSlug && s.slug?.toLowerCase().trim() === normalizedSlug) ||
+              (normalizedName && s.name?.toLowerCase().trim() === normalizedName)
+          );
+          if (!exists) acc.push(space);
+          return acc;
+        }, []);
+        setSpaces(dedupedSpaces);
         setPages(normalized);
       } catch (err: any) {
         setError(err.message || "Failed to load page");

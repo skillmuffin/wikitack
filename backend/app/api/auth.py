@@ -5,17 +5,62 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 
+# For mobile ID-token verification
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
+
 from app.core.config import settings
 from app.core.security import create_access_token
 from app.core.deps import get_current_active_user
 from app.db.session import get_db
 from app.models import User as UserModel
-from app.schemas.auth import Token, GoogleAuthURL
+from app.schemas.auth import Token, GoogleAuthURL, GoogleIdTokenRequest
 from app.schemas.user import User
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
-# OAuth configuration
+# ----------------------------------------------------------------------
+# Shared helper: upsert user by email
+# ----------------------------------------------------------------------
+async def _get_or_create_user(
+    db: AsyncSession,
+    *,
+    email: str,
+    name: str | None = None,
+    google_id: str | None = None,
+) -> UserModel:
+    result = await db.execute(select(UserModel).where(UserModel.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        username = email.split("@")[0]
+
+        # if username exists, append part of google_id
+        result = await db.execute(select(UserModel).where(UserModel.username == username))
+        if result.scalar_one_or_none() and google_id:
+            username = f"{username}_{google_id[:8]}"
+
+        user = UserModel(
+            username=username,
+            email=email,
+            display_name=name,
+            is_active=True,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    else:
+        if name and not user.display_name:
+            user.display_name = name
+            await db.commit()
+            await db.refresh(user)
+
+    return user
+
+
+# ----------------------------------------------------------------------
+# OAuth configuration for WEB flow
+# ----------------------------------------------------------------------
 oauth = OAuth()
 oauth.register(
     name="google",
@@ -25,50 +70,115 @@ oauth.register(
     client_kwargs={"scope": "openid email profile"},
 )
 
+# ----------------------------------------------------------------------
+# MOBILE: client sends Google ID token, we verify and issue JWT
+# POST /api/v1/auth/google/mobile
+# ----------------------------------------------------------------------
+@router.post("/google/mobile", response_model=Token)
+async def google_callback_mobile(
+    body: GoogleIdTokenRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mobile callback: accepts a Google ID token from Android/iOS,
+    verifies it, upserts the user, and returns a JWT (no redirect).
+    """
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Google OAuth is not configured",
+        )
 
+    # Verify ID token against your WEB client ID
+    try:
+        idinfo = google_id_token.verify_oauth2_token(
+            body.id_token,
+            google_requests.Request(),
+            audience=settings.GOOGLE_CLIENT_ID,
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google ID token",
+        )
+
+    if idinfo.get("iss") not in ["accounts.google.com", "https://accounts.google.com"]:
+        raise HTTPException(status_code=401, detail="Invalid token issuer")
+
+    google_id = idinfo.get("sub")
+    email = idinfo.get("email")
+    name = idinfo.get("name")
+    picture = idinfo.get("picture")  # unused for now
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email not provided by Google",
+        )
+
+    user = await _get_or_create_user(
+        db,
+        email=email,
+        name=name,
+        google_id=google_id,
+    )
+
+    jwt_token = create_access_token(data={"sub": str(user.id), "email": user.email})
+
+    return Token(
+        access_token=jwt_token,
+        token_type="bearer",
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+    )
+
+
+# ----------------------------------------------------------------------
+# WEB: login URL – GET /api/v1/auth/google/login
+# ----------------------------------------------------------------------
 @router.get("/google/login", response_model=GoogleAuthURL)
 async def google_login():
     """
-    Get Google OAuth login URL.
-
-    Returns the authorization URL that the frontend should redirect to.
+    Get Google OAuth login URL for the web frontend.
     """
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."
+            detail="Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
         )
 
     authorization_url = (
-        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        "https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={settings.GOOGLE_CLIENT_ID}&"
         f"redirect_uri={settings.GOOGLE_REDIRECT_URI}&"
-        f"response_type=code&"
-        f"scope=openid%20email%20profile&"
-        f"access_type=offline"
+        "response_type=code&"
+        "scope=openid%20email%20profile&"
+        "access_type=offline"
     )
 
     return GoogleAuthURL(authorization_url=authorization_url)
 
 
+# ----------------------------------------------------------------------
+# WEB: callback – GET /api/v1/auth/google/callback
+# ----------------------------------------------------------------------
 @router.get("/google/callback")
 async def google_callback(
     code: str,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Handle Google OAuth callback.
-
-    This endpoint receives the authorization code from Google and exchanges it for user info.
-    Creates or updates the user in the database and returns a JWT token.
+    Web callback: receives the authorization code from Google,
+    exchanges it for user info, upserts user, and redirects with JWT.
     """
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Google OAuth is not configured"
+            detail="Google OAuth is not configured",
         )
 
-    # Exchange code for token
+    # Exchange code for access token
     async with httpx.AsyncClient() as client:
         token_response = await client.post(
             "https://oauth2.googleapis.com/token",
@@ -84,7 +194,7 @@ async def google_callback(
         if token_response.status_code != 200:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to exchange code for token"
+                detail="Failed to exchange code for token",
             )
 
         token_data = token_response.json()
@@ -99,70 +209,46 @@ async def google_callback(
         if user_info_response.status_code != 200:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to get user info from Google"
+                detail="Failed to get user info from Google",
             )
 
         user_info = user_info_response.json()
 
-    # Extract user information
     google_id = user_info.get("id")
     email = user_info.get("email")
     name = user_info.get("name")
-    picture = user_info.get("picture")
+    picture = user_info.get("picture")  # unused for now
 
     if not email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email not provided by Google"
+            detail="Email not provided by Google",
         )
 
-    # Check if user exists by email
-    result = await db.execute(select(UserModel).where(UserModel.email == email))
-    user = result.scalar_one_or_none()
+    user = await _get_or_create_user(
+        db,
+        email=email,
+        name=name,
+        google_id=google_id,
+    )
 
-    if not user:
-        # Create new user
-        # Generate username from email
-        username = email.split("@")[0]
+    jwt_token = create_access_token(data={"sub": str(user.id), "email": user.email})
 
-        # Check if username exists, if so, append google id
-        result = await db.execute(select(UserModel).where(UserModel.username == username))
-        if result.scalar_one_or_none():
-            username = f"{username}_{google_id[:8]}"
-
-        user = UserModel(
-            username=username,
-            email=email,
-            display_name=name,
-            is_active=True,
-        )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-    else:
-        # Update existing user's display name if needed
-        if name and not user.display_name:
-            user.display_name = name
-            await db.commit()
-            await db.refresh(user)
-
-    # Create JWT token
-    jwt_token = create_access_token(data={"sub": user.id, "email": user.email})
-
-    # Redirect to frontend with token
     frontend_url = settings.CORS_ORIGINS[0] if settings.CORS_ORIGINS else "http://localhost:3000"
     redirect_url = f"{frontend_url}/auth/callback?token={jwt_token}"
 
     return RedirectResponse(url=redirect_url)
 
 
+# ----------------------------------------------------------------------
+# /me and /logout – unchanged
+# ----------------------------------------------------------------------
 @router.get("/me", response_model=User)
 async def get_current_user_info(
     current_user: UserModel = Depends(get_current_active_user),
 ):
     """
     Get current authenticated user information.
-
     Requires a valid JWT token in the Authorization header.
     """
     return current_user
@@ -173,9 +259,6 @@ async def logout(
     current_user: UserModel = Depends(get_current_active_user),
 ):
     """
-    Logout endpoint.
-
-    Since we're using stateless JWT tokens, this is mainly for the client
-    to clear the token. In production, you might want to add token blacklisting.
+    Logout endpoint (client should drop the JWT; no server-side state).
     """
     return {"message": "Successfully logged out"}

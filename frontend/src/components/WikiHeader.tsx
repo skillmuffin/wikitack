@@ -21,6 +21,9 @@ export default function WikiHeader({ onSearch }: WikiHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { isAuthenticated, user, logout, loading } = useAuth();
+  const avatarName = user?.display_name || user?.username || user?.email || "User";
+  const avatarInitial = avatarName.charAt(0).toUpperCase();
+  const avatarImage = user?.picture || null;
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -111,7 +114,7 @@ export default function WikiHeader({ onSearch }: WikiHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-zinc-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:border-zinc-800 dark:bg-zinc-950/95 dark:supports-[backdrop-filter]:bg-zinc-950/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+      <div className="container mx-auto flex items-center justify-between px-6 py-3">
         <div className="flex items-center gap-6">
           <div className="flex items-start gap-2">
             <div className="flex flex-col">
@@ -180,9 +183,17 @@ export default function WikiHeader({ onSearch }: WikiHeaderProps) {
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setIsMenuOpen((prev) => !prev)}
-                  className="flex items-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  className="flex items-center gap-2 rounded-full border border-zinc-300 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 >
-                  <span>{user?.display_name || user?.email || user?.username}</span>
+                  <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-zinc-200 text-sm font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
+                    {avatarImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={avatarImage} alt={avatarName} className="h-full w-full object-cover" />
+                    ) : (
+                      avatarInitial
+                    )}
+                  </span>
+                  <span>{avatarName}</span>
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">▾</span>
                 </button>
                 {isMenuOpen && (

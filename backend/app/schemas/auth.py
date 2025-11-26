@@ -19,3 +19,7 @@ class GoogleCallback(BaseModel):
     """Google OAuth callback data."""
     code: str
     state: str | None = None
+
+
+class GoogleIdTokenRequest(BaseModel):
+    id_token: str

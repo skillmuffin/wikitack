@@ -855,4 +855,25 @@ python3 -m venv .venv
    podman-compose build --no-cache
    podman-compose up --force-recreate  
 
+
+   podman-compose -f podman-compose.prod.yml up -d --build
+
+   podman-compose -f podman-compose.prod.yml up --build -d
+
+
+
+   podman-compose -f podman-compose.prod.yml down
+   podman-compose -f podman-compose.prod.yml build --no-cache
+   podman-compose -f podman-compose.prod.yml up -d
+
+
+
+   podman-compose -f podman-compose.prod.yml rm -f
+   podman-compose -f podman-compose.prod.yml build --no-cache
+   podman-compose -f podman-compose.prod.yml up -d
+
+
+
+   podman-compose -f podman-compose.prod.yml build --no-cache frontend
+   podman-compose -f podman-compose.prod.yml up -d --force-recreate
 **Built with FastAPI, Next.js, PostgreSQL, and modern web technologies.**
